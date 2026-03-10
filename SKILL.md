@@ -180,7 +180,7 @@ The following `parameters[].parameters` shape has been verified to work for **se
 | `prompt` | string | ✅ | Text to speak (合成文本). |
 | `n` | int | ✅ | Usually 1. |
 | `model` | string | ✅ | Sub-model: `seed-tts-2.0-expressive` (default) or `seed-tts-2.0-standard`. |
-| `speaker` | string | optional | Speaker ID / 发音人，e.g. `BV123_streaming`（[音色列表 1257544](https://www.volcengine.com/docs/6561/1257544) 中 voice_type）. |
+| `speaker` | string | optional | Speaker ID / 发音人，e.g. `zh_male_sophie_uranus_bigtts`（[音色列表 1257544](https://www.volcengine.com/docs/6561/1257544) 中原生 voice_type）. **注意：** 使用原生格式（如 `zh_male_*_uranus_bigtts`），不支持 `BV*_streaming` 格式。 |
 | `audio_params` | object | optional | `emotion`（情感）、`speech_rate`（语速 [-50,100]）、`loudness_rate`（音量 [-50,100]）等，见 [1598757 请求 Body](https://www.volcengine.com/docs/6561/1598757?lang=zh). |
 | `additions` | object | optional | e.g. `{"explicit_language": "crosslingual", "context_texts": []}`. |
 | `cast` | object | ✅ | `{"points": <credit>, "attribute_id": <attribute_id>}` from product list. |
@@ -190,13 +190,13 @@ The following `parameters[].parameters` shape has been verified to work for **se
 ```bash
 python3 ima_tts_create.py --api-key $IMA_API_KEY --model-id seed-tts-2.0 \
   --prompt "阳光青年音色测试，你好世界。" \
-  --extra-params '{"model":"seed-tts-2.0-expressive","speaker":"BV123_streaming","audio_params":{"emotion":"neutral"},"additions":{"explicit_language":"crosslingual","context_texts":[]}}' \
+  --extra-params '{"model":"seed-tts-2.0-expressive","speaker":"zh_male_sophie_uranus_bigtts","audio_params":{"emotion":"neutral"},"additions":{"explicit_language":"crosslingual","context_texts":[]}}' \
   --output-json
 ```
 
 **Note:** The script gets `attribute_id` and `credit` from the product list (e.g. `app=ima&platform=web` → often 2 pts / attribute_id 4419 for seed-tts-2.0). If you have a different app/platform (e.g. webAgent), the product list may return different credit_rules (e.g. 5 pts / attribute_id 8987); the script uses whatever the product list returns for the chosen model.
 
-**Speaker / 音色列表（seed-tts-2.0 兼容火山引擎音色）：** 完整音色 ID 与场景分类见项目内 `data/volcengine_tts_timbre_list.json`。该文件来自 [火山引擎豆包语音合成音色列表](https://www.volcengine.com/docs/6561/1257544)，其中 `voice_type` 即作为 `parameters.speaker` 传入（如 `BV123_streaming` 阳光青年、`BV001_streaming` 通用女声）。文件内含 `ima_tts_integration` 与 `parameter_reference`，说明与 IMA TTS 的字段对应及可选参数。
+**Speaker / 音色列表（seed-tts-2.0 兼容火山引擎音色）：** 完整音色 ID 与场景分类见项目内 `volcengine_tts_timbre_list.json`。该文件来自 [火山引擎豆包语音合成音色列表](https://www.volcengine.com/docs/6561/1257544)，使用原生 `voice_type` 格式（如 `zh_male_sophie_uranus_bigtts` 魅力苏菲、`zh_female_vv_uranus_bigtts` Vivi）。**⚠️ 注意：** IMA API 只支持原生格式（`*_uranus_bigtts` 系列），不支持 `BV*_streaming` 豆包音色 ID。
 
 **与火山引擎 2.0 文档对照：** 上述参数与 [HTTP Chunked/SSE 单向流式 V3 请求 Body](https://www.volcengine.com/docs/6561/1598757?lang=zh) 一致：`req_params.text` → prompt，`req_params.speaker` → speaker（必填项），`req_params.model` → model（expressive/standard），`req_params.audio_params`（emotion、speech_rate、loudness_rate 等），`req_params.additions`（如 explicit_language）。2.0 能力说明见 [豆包语音合成2.0能力介绍](https://www.volcengine.com/docs/6561/1871062?lang=zh)（语音指令、引用上文、语音标签等）。
 
@@ -216,7 +216,7 @@ python3 ima_tts_create.py --api-key $IMA_API_KEY --model-id seed-tts-2.0 \
 
 | 询问项 | 对应参数 | 选项来源与示例 |
 |--------|----------|----------------|
-| **音色 / 发音人** | `speaker` | 从项目内 `volcengine_tts_timbre_list.json`（或 [音色列表 1257544](https://www.volcengine.com/docs/6561/1257544)）按场景推荐：**有声阅读**（阳光青年 BV123_streaming、古风少御 BV115_streaming 等）、**视频配音**（影视解说小帅 BV411_streaming、沉稳解说男 BV142_streaming 等）、**智能助手**（亲切女声 BV007_streaming 等）、**通用**（通用女声 BV001_streaming、通用男声 BV002_streaming）。可简短列出 3–5 个候选让用户选，或问「要男声/女声？偏解说/读书/助手？」再缩小范围。 |
+| **音色 / 发音人** | `speaker` | 从项目内 `volcengine_tts_timbre_list.json`（或 [音色列表 1257544](https://www.volcengine.com/docs/6561/1257544)）按场景推荐：**通用场景**（魅力苏菲 `zh_male_sophie_uranus_bigtts`、Vivi `zh_female_vv_uranus_bigtts`、云舟 `zh_male_m191_uranus_bigtts`）、**视频配音**（大壹 `zh_male_dayi_uranus_bigtts`、猴哥 `zh_male_sunwukong_uranus_bigtts`）、**角色扮演**（知性灿灿 `zh_female_cancan_uranus_bigtts`、撒娇学妹 `zh_female_sajiaoxuemei_uranus_bigtts`）。可简短列出 3–5 个候选让用户选，或问「要男声/女声？偏解说/读书/助手？」再缩小范围。**⚠️ 使用原生格式**（`*_uranus_bigtts`）。 |
 
 ### 可选问（按需补充）
 
@@ -240,7 +240,7 @@ Map user intent to parameters using product `form_config` (e.g. voice, speed):
 | 旁白 / 配音 / 朗读 / 把这段读出来 | prompt + speaker（建议问） | **先问清内容与音色**，再调用；见上方「当用户说制作旁白/配音时如何询问」。 |
 | 女声 / 女声朗读 / female voice | voice_id / voice_type / speaker | Use value from form_config or e.g. speaker ID |
 | 男声 / 男声朗读 / male voice | voice_id / voice_type / speaker | Use value from form_config or e.g. speaker ID |
-| 发音人 / 音色 / speaker | speaker | seed-tts-2.0: e.g. BV123_streaming，见 volcengine_tts_timbre_list.json |
+| 发音人 / 音色 / speaker | speaker | seed-tts-2.0: e.g. zh_male_sophie_uranus_bigtts，见 volcengine_tts_timbre_list.json（原生格式） |
 | 情感 / 情绪 / emotion | audio_params.emotion | e.g. "neutral", "sad"；部分音色支持 |
 | 语速快/慢 / speed up/slow | audio_params.speech_rate | 范围 [-50, 100]，0 为正常 |
 | 音调 / pitch | pitch | If supported |

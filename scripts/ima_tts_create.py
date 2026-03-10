@@ -13,7 +13,7 @@ Usage:
     --prompt   "Text to speak"
 
 Supports text_to_speech task type only.
-Models: Query /open/v1/product/list?category=text_to_speech for actual model_id.
+Default model: seed-tts-2.0 (this skill does not target seed-tts-1.1).
 
 Logs: ~/.openclaw/logs/ima_skills/ima_create_YYYYMMDD.log
 """
@@ -51,6 +51,7 @@ except ImportError:
 DEFAULT_BASE_URL = "https://api.imastudio.com"
 PREFS_PATH       = os.path.expanduser("~/.openclaw/memory/ima_prefs.json")
 TASK_TYPE        = "text_to_speech"  # Fixed task type for TTS generation
+DEFAULT_MODEL_ID = "seed-tts-2.0"     # This skill targets 2.0 only; 1.1 is not supported
 
 # Poll configuration for TTS generation
 POLL_CONFIG = {
@@ -492,9 +493,11 @@ def create_task_with_reflection(base_url: str, api_key: str, model_params: dict,
         all_attr_keys.update((rule.get("attributes") or {}).keys())
 
     # TTS-specific attribute keys (voice_id, speed, format, etc.)
+    # 🆕 Added: speaker, audio_params, additions, model (support volcengine native params)
     tts_attr_keys = {
         "voice_id", "voice_type", "speed", "pitch", "volume",
         "format", "sample_rate", "n", "quality",
+        "speaker", "audio_params", "additions", "model",
     }
 
     merged_params = {**model_params.get('form_params', {}), **(extra_params or {})}
@@ -687,24 +690,33 @@ Examples:
     --model-id <model_id> \\
     --prompt "Hello, this is a sample text to be spoken."
 
-  # With extra parameters (voice_id, speed, etc. — depends on product form_config)
-  python3 ima_tts_create.py \\
-    --api-key ima_xxx \\
-    --model-id <model_id> \\
-    --prompt "Sample text" \\
-    --extra-params '{"speed": 1.0}'
+  # With speaker (voice_type from volcengine_tts_timbre_list.json - native format)
+  python3 ima_tts_create.py --api-key ima_xxx --model-id seed-tts-2.0 \\
+    --prompt "你好世界" --speaker zh_male_sophie_uranus_bigtts
+
+  # With emotion (seed-tts-2.0: audio_params.emotion)
+  python3 ima_tts_create.py --api-key ima_xxx --model-id seed-tts-2.0 \\
+    --prompt "你好世界" --emotion neutral
+
+  # With extra parameters (speaker, audio_params, additions, etc.)
+  python3 ima_tts_create.py --api-key ima_xxx --model-id seed-tts-2.0 \\
+    --prompt "Sample text" --extra-params '{"speaker":"zh_female_vv_uranus_bigtts","audio_params":{"emotion":"sad"}}'
 """,
     )
     p.add_argument("--api-key",  required=False,
                    help="IMA Open API key (starts with ima_). Can also use IMA_API_KEY env var")
     p.add_argument("--model-id",
-                   help="Model ID from /open/v1/product/list?category=text_to_speech")
+                   help=f"TTS model ID (default: {DEFAULT_MODEL_ID}). This skill targets seed-tts-2.0 only.")
     p.add_argument("--version-id",
                    help="Specific version ID — overrides auto-select of latest")
     p.add_argument("--prompt",
                    help="Text to speak (required unless --list-models)")
+    p.add_argument("--speaker",
+                   help="Speaker/voice ID (e.g. zh_male_sophie_uranus_bigtts). See volcengine_tts_timbre_list.json for full list. Use native format (*_uranus_bigtts), NOT BV*_streaming.")
+    p.add_argument("--emotion",
+                   help="Emotion for seed-tts-2.0 (e.g. neutral, sad). Maps to audio_params.emotion.")
     p.add_argument("--extra-params",
-                   help='JSON string of extra parameters, e.g. \'{"speed": 1.0}\'')
+                   help='JSON for extra params (Volc 2.0): speaker, model (expressive/standard), audio_params.emotion/speech_rate/loudness_rate, additions. Example: \'{"speaker":"zh_female_vv_uranus_bigtts","audio_params":{"emotion":"neutral","speech_rate":0}}\'')
     p.add_argument("--language", default="en",
                    help="Language for product labels (en/zh)")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL,
@@ -753,8 +765,8 @@ def main():
             args.model_id = pref_model
             print(f"💡 Using your preferred model: {pref_model}", flush=True)
         else:
-            print("❌ --model-id is required (no saved preference). Run with --list-models to see available models.", file=sys.stderr)
-            sys.exit(1)
+            args.model_id = DEFAULT_MODEL_ID
+            print(f"💡 Using default model: {DEFAULT_MODEL_ID} (this skill focuses on 2.0 only)", flush=True)
 
     if not args.prompt:
         print("❌ --prompt is required", file=sys.stderr)
@@ -776,6 +788,10 @@ def main():
     print(f"✅ Model found: {mp['model_name']} (model_id={mp['model_id']}, credit={mp['credit']} pts)", flush=True)
 
     extra: dict = {}
+    if args.speaker:
+        extra["speaker"] = args.speaker
+    if args.emotion:
+        extra.setdefault("audio_params", {})["emotion"] = args.emotion
     if args.extra_params:
         try:
             extra.update(json.loads(args.extra_params))

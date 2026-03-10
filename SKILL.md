@@ -3,20 +3,20 @@ name: IMA Studio TTS
 version: 1.0.0
 category: file-generation
 author: IMA Studio (imastudio.com)
-keywords: imastudio, tts, text-to-speech, speech synthesis, voice, 语音合成
+keywords: imastudio, tts, text-to-speech, speech synthesis, voice, 语音合成, 文字转语音, IMA, TTS, 多模型
 argument-hint: "[text to speak or 要朗读的文本]"
 description: >
   Use when generating speech from text (text-to-speech) via IMA Open API. Use for: voice synthesis,
   TTS,朗读, 语音合成, 配音, 有声内容. Output: audio URL (mp3/wav). Flow: query products →
-  create task → poll until done. Requires IMA API key. Run scripts with --list-models to see
-  actual model_id and credit; always query /open/v1/product/list?category=text_to_speech first.
+  create task → poll until done. Requires IMA API key. This skill targets seed-tts-2.0 only
+  (seed-tts-1.1 is not supported). Default model is seed-tts-2.0.
 ---
 
 # IMA TTS (Text-to-Speech)
 
 ## Overview
 
-Call IMA Open API to create **text-to-speech** audio. Same flow as other IMA creation skills: **query products → create task → poll until done**. Task type is `text_to_speech`; all model IDs and credits come from the product list at runtime.
+Call IMA Open API to create **text-to-speech** audio. Same flow as other IMA creation skills: **query products → create task → poll until done**. Task type is `text_to_speech`. **This skill targets seed-tts-2.0 only** — seed-tts-1.1 is not supported; the script defaults to `seed-tts-2.0` when no model is specified.
 
 ## ⚙️ How This Skill Works
 
@@ -34,15 +34,13 @@ This skill uses a bundled Python script `scripts/ima_tts_create.py` to call the 
 Use the bundled script:
 
 ```bash
-# List available TTS models (required to get model_id)
-python3 {baseDir}/scripts/ima_tts_create.py \
-  --api-key $IMA_API_KEY \
-  --list-models
+# List available TTS models (optional; default is seed-tts-2.0)
+python3 {baseDir}/scripts/ima_tts_create.py --api-key $IMA_API_KEY --list-models
 
-# Generate speech (task type text_to_speech is fixed in script)
+# Generate speech (default model: seed-tts-2.0; omit --model-id to use default)
 python3 {baseDir}/scripts/ima_tts_create.py \
   --api-key $IMA_API_KEY \
-  --model-id <model_id from list> \
+  --model-id seed-tts-2.0 \
   --prompt "Text to be spoken here." \
   --user-id {user_id} \
   --output-json
@@ -171,7 +169,65 @@ Response: `data.id` = task_id for polling.
 |----------|------------|-------|
 | `text_to_speech` | Text → Speech | prompt (text to speak) |
 
-**Models:** Not fixed. Always call `GET /open/v1/product/list?category=text_to_speech` (or run `ima_tts_create.py --list-models`) to get current `model_id`, `version_id`, `attribute_id`, and `credit`. Use a leaf node’s `model_id` as `--model-id` in the script.
+**Models:** This skill supports **seed-tts-2.0** only (seed-tts-1.1 is not supported). The script defaults to `--model-id seed-tts-2.0` when none is provided. For current `attribute_id` and `credit`, the script reads from the product list at runtime.
+
+### seed-tts-2.0 — Verified request parameters
+
+The following `parameters[].parameters` shape has been verified to work for **seed-tts-2.0** (attribute_id/credit come from product list and may differ by app/platform):
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prompt` | string | ✅ | Text to speak (合成文本). |
+| `n` | int | ✅ | Usually 1. |
+| `model` | string | ✅ | Sub-model: `seed-tts-2.0-expressive` (default) or `seed-tts-2.0-standard`. |
+| `speaker` | string | optional | Speaker ID / 发音人，e.g. `BV123_streaming`（[音色列表 1257544](https://www.volcengine.com/docs/6561/1257544) 中 voice_type）. |
+| `audio_params` | object | optional | `emotion`（情感）、`speech_rate`（语速 [-50,100]）、`loudness_rate`（音量 [-50,100]）等，见 [1598757 请求 Body](https://www.volcengine.com/docs/6561/1598757?lang=zh). |
+| `additions` | object | optional | e.g. `{"explicit_language": "crosslingual", "context_texts": []}`. |
+| `cast` | object | ✅ | `{"points": <credit>, "attribute_id": <attribute_id>}` from product list. |
+
+**Script example with extra params:**
+
+```bash
+python3 ima_tts_create.py --api-key $IMA_API_KEY --model-id seed-tts-2.0 \
+  --prompt "阳光青年音色测试，你好世界。" \
+  --extra-params '{"model":"seed-tts-2.0-expressive","speaker":"BV123_streaming","audio_params":{"emotion":"neutral"},"additions":{"explicit_language":"crosslingual","context_texts":[]}}' \
+  --output-json
+```
+
+**Note:** The script gets `attribute_id` and `credit` from the product list (e.g. `app=ima&platform=web` → often 2 pts / attribute_id 4419 for seed-tts-2.0). If you have a different app/platform (e.g. webAgent), the product list may return different credit_rules (e.g. 5 pts / attribute_id 8987); the script uses whatever the product list returns for the chosen model.
+
+**Speaker / 音色列表（seed-tts-2.0 兼容火山引擎音色）：** 完整音色 ID 与场景分类见项目内 `data/volcengine_tts_timbre_list.json`。该文件来自 [火山引擎豆包语音合成音色列表](https://www.volcengine.com/docs/6561/1257544)，其中 `voice_type` 即作为 `parameters.speaker` 传入（如 `BV123_streaming` 阳光青年、`BV001_streaming` 通用女声）。文件内含 `ima_tts_integration` 与 `parameter_reference`，说明与 IMA TTS 的字段对应及可选参数。
+
+**与火山引擎 2.0 文档对照：** 上述参数与 [HTTP Chunked/SSE 单向流式 V3 请求 Body](https://www.volcengine.com/docs/6561/1598757?lang=zh) 一致：`req_params.text` → prompt，`req_params.speaker` → speaker（必填项），`req_params.model` → model（expressive/standard），`req_params.audio_params`（emotion、speech_rate、loudness_rate 等），`req_params.additions`（如 explicit_language）。2.0 能力说明见 [豆包语音合成2.0能力介绍](https://www.volcengine.com/docs/6561/1871062?lang=zh)（语音指令、引用上文、语音标签等）。
+
+---
+
+## 🎤 当用户说「帮我制作旁白/配音」时如何询问
+
+当用户表达「帮我制作旁白」「做一段配音」「把这段文字读出来」等意图时，**必须先收集关键信息再调用脚本**，避免缺参或盲目默认。
+
+### 必问
+
+| 询问项 | 对应参数 | 说明 |
+|--------|----------|------|
+| **要朗读的内容 / 旁白文案** | `prompt` | 合成文本，必填。若用户只给主题，可请用户提供具体文案或由你生成后让用户确认。 |
+
+### 建议问（让用户选择）
+
+| 询问项 | 对应参数 | 选项来源与示例 |
+|--------|----------|----------------|
+| **音色 / 发音人** | `speaker` | 从项目内 `volcengine_tts_timbre_list.json`（或 [音色列表 1257544](https://www.volcengine.com/docs/6561/1257544)）按场景推荐：**有声阅读**（阳光青年 BV123_streaming、古风少御 BV115_streaming 等）、**视频配音**（影视解说小帅 BV411_streaming、沉稳解说男 BV142_streaming 等）、**智能助手**（亲切女声 BV007_streaming 等）、**通用**（通用女声 BV001_streaming、通用男声 BV002_streaming）。可简短列出 3–5 个候选让用户选，或问「要男声/女声？偏解说/读书/助手？」再缩小范围。 |
+
+### 可选问（按需补充）
+
+| 询问项 | 对应参数 | 说明与取值 |
+|--------|----------|------------|
+| **情感 / 情绪** | `audio_params.emotion` | 部分音色支持，如 neutral、sad、angry；详见 [音色列表-多情感音色](https://www.volcengine.com/docs/6561/1257544)。 |
+| **语速** | `audio_params.speech_rate` | 范围 [-50, 100]，0 为正常，100 约 2 倍速。可通过 `--extra-params '{"audio_params":{"speech_rate":20}}'` 传入。 |
+| **音量** | `audio_params.loudness_rate` | 范围 [-50, 100]，0 为正常（mix 音色不支持）。 |
+| **模型风格** | `model` | `seed-tts-2.0-expressive`（默认，表现力强）或 `seed-tts-2.0-standard`（更稳定）。 |
+
+**脚本对应：** `--prompt` 必填；`--speaker`、`--emotion` 直接支持；语速/音量/模型等通过 `--extra-params` 传入 JSON（见上文 Script example）。
 
 ---
 
@@ -181,11 +237,15 @@ Map user intent to parameters using product `form_config` (e.g. voice, speed):
 
 | User intent / phrasing | Parameter (if in form_config) | Notes |
 |-------------------------|---------------------------------|--------|
-| 女声 / 女声朗读 / female voice | voice_id / voice_type | Use value from form_config options |
-| 男声 / 男声朗读 / male voice | voice_id / voice_type | Use value from form_config options |
-| 语速快/慢 / speed up/slow | speed | e.g. 0.8–1.2 |
+| 旁白 / 配音 / 朗读 / 把这段读出来 | prompt + speaker（建议问） | **先问清内容与音色**，再调用；见上方「当用户说制作旁白/配音时如何询问」。 |
+| 女声 / 女声朗读 / female voice | voice_id / voice_type / speaker | Use value from form_config or e.g. speaker ID |
+| 男声 / 男声朗读 / male voice | voice_id / voice_type / speaker | Use value from form_config or e.g. speaker ID |
+| 发音人 / 音色 / speaker | speaker | seed-tts-2.0: e.g. BV123_streaming，见 volcengine_tts_timbre_list.json |
+| 情感 / 情绪 / emotion | audio_params.emotion | e.g. "neutral", "sad"；部分音色支持 |
+| 语速快/慢 / speed up/slow | audio_params.speech_rate | 范围 [-50, 100]，0 为正常 |
 | 音调 / pitch | pitch | If supported |
-| 大声/小声 / volume | volume | If supported |
+| 大声/小声 / volume | audio_params.loudness_rate | 范围 [-50, 100] |
+| 风格 expressive/standard | model | seed-tts-2.0: seed-tts-2.0-expressive / seed-tts-2.0-standard |
 
 If the user does not specify, use form_config defaults. Do not send parameters not present in the product’s credit_rules/attributes or form_config (reflection will strip them on retry).
 

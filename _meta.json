@@ -1,4 +1,6 @@
 {
   "slug": "ima-tts-ai",
+  "name": "IMA TTS",
+  "description": "IMA 语音合成：文字转语音 TTS，多模型动态列表。Text-to-speech via IMA Open API.",
   "version": "1.0.0"
 }

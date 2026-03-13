@@ -3,13 +3,12 @@ name: IMA Studio TTS
 version: 1.0.0
 category: file-generation
 author: IMA Studio (imastudio.com)
-keywords: imastudio, tts, text-to-speech, speech synthesis, voice, 语音合成, 文字转语音, IMA, TTS, 多模型
-argument-hint: "[text to speak or 要朗读的文本]"
+keywords: imastudio, tts, text-to-speech, speech synthesis, voice, IMA, seed-tts, seed-tts-2.0
+argument-hint: "[text to speak]"
 description: >
-  Use when generating speech from text (text-to-speech) via IMA Open API. Use for: voice synthesis,
-  TTS,朗读, 语音合成, 配音, 有声内容. Output: audio URL (mp3/wav). Flow: query products →
-  create task → poll until done. Requires IMA API key. This skill targets seed-tts-2.0 only
-  (seed-tts-1.1 is not supported). Default model is seed-tts-2.0.
+  Text-to-speech via IMA Open API. Supported model: seed-tts-2.0 only (seed-tts-1.1 not supported). 
+  Use for: voice synthesis, TTS, speech from text, dubbing, audio content. Output: audio URL (mp3/wav). 
+  Flow: query products, create task, poll until done. Requires IMA API key.
 ---
 
 # IMA TTS (Text-to-Speech)

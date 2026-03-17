@@ -10,6 +10,16 @@ description: >
   TTS,朗读, 语音合成, 配音, 有声内容. Output: audio URL (mp3/wav). Flow: query products →
   create task → poll until done. Requires IMA API key. This skill targets seed-tts-2.0 only
   (seed-tts-1.1 is not supported). Default model is seed-tts-2.0.
+requires:
+  env:
+    - IMA_API_KEY
+  primaryCredential: IMA_API_KEY
+  credentialNote: IMA_API_KEY is sent only to api.imastudio.com for TTS product/task APIs.
+persistence:
+  readWrite:
+    - ~/.openclaw/memory/ima_prefs.json
+    - ~/.openclaw/logs/ima_skills/
+  retention: Logs are auto-cleaned after 7 days; preferences remain until user deletes them.
 ---
 
 # IMA TTS (Text-to-Speech)
